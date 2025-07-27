@@ -1,6 +1,20 @@
+let sortMode = "";
+
+function setSortMode(mode) {
+  sortMode = mode;
+  fetchGroups();
+}
+
 async function fetchGroups() {
   const res = await fetch('/api/groups');
-  const groups = await res.json();
+  let groups = await res.json();
+
+  if (sortMode === "name") {
+    groups.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sortMode === "created") {
+    groups.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  }
+
   renderGroups(groups);
 }
 
@@ -9,21 +23,28 @@ function renderGroups(groups) {
   container.innerHTML = '';
   groups.forEach(group => {
     const div = document.createElement('div');
-    div.className = 'group';
+    div.className = 'p-4 border border-gray-600 rounded bg-gray-800';
     div.innerHTML = `
-      <h2>${group.name}</h2>
+      <h2 contenteditable="true" onblur="renameGroup('${group._id}', this.textContent)" class="text-lg font-semibold mb-2">${group.name}</h2>
       ${group.counters.map(counter => `
-        <div class="counter">
-          <span>${counter.name}: ${counter.value}</span>
+        <div class="flex justify-between items-center mb-2">
+          <input type="text" value="${counter.name}" onblur="renameCounter('${group._id}', '${counter._id}', this.value)" class="bg-transparent text-white border-b border-gray-500 mr-2" />
+          <span>${counter.value}</span>
           <div>
-            <button onclick="updateCounter('${group._id}', '${counter._id}', 'increment')">+</button>
-            <button onclick="updateCounter('${group._id}', '${counter._id}', 'decrement')">–</button>
+            <button onclick="updateCounter('${group._id}', '${counter._id}', 'increment')" class="text-green-400 hover:text-green-300"><i class="fas fa-plus"></i></button>
+            <button onclick="updateCounter('${group._id}', '${counter._id}', 'decrement')" class="text-red-400 hover:text-red-300"><i class="fas fa-minus"></i></button>
           </div>
         </div>
       `).join('')}
-      <button onclick="exportGroup('${group._id}', 'csv')">Export CSV</button>
-      <button onclick="showQR('${group._id}')">QR Code</button>
-      <canvas id="chart-${group._id}" width="300" height="150"></canvas>
+      <form onsubmit="addCounter(event, '${group._id}')" class="flex gap-2 mt-2">
+        <input type="text" placeholder="New counter name" id="newCounter-${group._id}" required class="px-2 py-1 rounded text-black" />
+        <button type="submit" class="bg-indigo-600 px-3 py-1 rounded hover:bg-indigo-500">Add Counter</button>
+      </form>
+      <div class="mt-3 flex gap-2">
+        <button onclick="exportGroup('${group._id}', 'csv')" class="bg-yellow-600 px-3 py-1 rounded hover:bg-yellow-500">Export CSV</button>
+        <button onclick="showQR('${group._id}')" class="bg-teal-600 px-3 py-1 rounded hover:bg-teal-500">QR Code</button>
+      </div>
+      <canvas id="chart-${group._id}" class="mt-4" width="300" height="150"></canvas>
     `;
     container.appendChild(div);
     renderChart(group);
@@ -91,8 +112,54 @@ async function createGroup(event) {
   fetchGroups();
 }
 
+async function addCounter(event, groupId) {
+  event.preventDefault();
+  const input = document.getElementById('newCounter-' + groupId);
+  const name = input.value.trim();
+  if (!name) return;
+  const res = await fetch('/api/groups');
+  const groups = await res.json();
+  const group = groups.find(g => g._id === groupId);
+  group.counters.push({ name, value: 0, history: [] });
+  await fetch('/api/groups/' + groupId, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(group)
+  });
+  input.value = '';
+  fetchGroups();
+}
+
+async function renameCounter(groupId, counterId, newName) {
+  const res = await fetch('/api/groups');
+  const groups = await res.json();
+  const group = groups.find(g => g._id === groupId);
+  const counter = group.counters.find(c => c._id === counterId);
+  counter.name = newName;
+  await fetch('/api/groups/' + groupId, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(group)
+  });
+}
+
+async function renameGroup(groupId, newName) {
+  const res = await fetch('/api/groups');
+  const groups = await res.json();
+  const group = groups.find(g => g._id === groupId);
+  group.name = newName;
+  await fetch('/api/groups/' + groupId, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(group)
+  });
+}
+
 function toggleTheme() {
-  document.body.classList.toggle('light');
+  document.body.classList.toggle('bg-gray-900');
+  document.body.classList.toggle('bg-white');
+  document.body.classList.toggle('text-white');
+  document.body.classList.toggle('text-black');
 }
 
 window.onload = fetchGroups;
