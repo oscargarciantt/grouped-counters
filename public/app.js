@@ -1,4 +1,3 @@
-// JS logic to fetch and render groups/counters would go here
 async function fetchGroups() {
   const res = await fetch('/api/groups');
   const groups = await res.json();
@@ -76,6 +75,24 @@ function renderChart(group) {
       }
     }
   });
+}
+
+async function createGroup(event) {
+  event.preventDefault();
+  const input = document.getElementById('groupNameInput');
+  const groupName = input.value.trim();
+  if (!groupName) return;
+  await fetch('/api/groups', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: groupName, counters: [] })
+  });
+  input.value = '';
+  fetchGroups();
+}
+
+function toggleTheme() {
+  document.body.classList.toggle('light');
 }
 
 window.onload = fetchGroups;
