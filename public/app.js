@@ -1,0 +1,1 @@
+// JS logic to fetch and render groups/counters would go here
